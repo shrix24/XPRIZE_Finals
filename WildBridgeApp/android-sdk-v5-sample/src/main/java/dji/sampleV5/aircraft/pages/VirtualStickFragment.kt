@@ -64,6 +64,7 @@ import okhttp3.internal.wait
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.camera.GeneratedMediaFileInfo
 import dji.sdk.keyvalue.value.camera.LaserWorkMode
+import dji.sdk.keyvalue.value.camera.LaserMeasureInformation
 import dji.v5.et.cancelListen
 import dji.v5.et.listen
 import dji.v5.manager.datacenter.media.*
@@ -117,6 +118,10 @@ class VirtualStickFragment : DJIFragment() {
     private var fireInfo: LocationCoordinate2D = LocationCoordinate2D()
     @Volatile
     private var smokeInfo: LocationCoordinate2D = LocationCoordinate2D()
+    @Volatile
+    private var lrfInfo: LaserMeasureInformation? = null
+    @Volatile
+    private var lrfListenerRegistered: Boolean = false
 
     // Simple HTTP server implementation
     private inner class SimpleHttpServer(private val port: Int) {
@@ -734,7 +739,19 @@ class VirtualStickFragment : DJIFragment() {
                         "Drop successfully"
                     }
                     "/send/triggerLRF" -> {
-
+                        setupLaserMeasureListener()
+                        laserKey.set(
+                            LaserWorkMode.OPEN_ALWAYS,
+                            onSuccess = {
+                                Log.i("DroneServer", "LRF laser opened")
+                            },
+                            onFailure = { error ->
+                                Log.e("DroneServer", "LRF laser open failed: ${error.description()}")
+                            }
+                        )
+                        mainHandler.post {
+                            ToastUtils.showToast("LRF triggered")
+                        }
                         "LRF triggered successfully"
                     }
                     "/send/gotoWP" -> {
@@ -846,6 +863,15 @@ class VirtualStickFragment : DJIFragment() {
                         val smokeLocation = getSmokeInfo()
                         "[${smokeLocation.latitude}, ${smokeLocation.longitude}]"
                     }
+                    "/status/lrfDistance" -> {
+                        val info = lrfInfo
+                        val distance = info?.distance
+                        if (distance == null) "" else "$distance"
+                    }
+                    "/status/lrfTargetPoint" -> {
+                        val target = lrfInfo?.location3D
+                        if (target == null) "" else "[${target.latitude}, ${target.longitude}, ${target.altitude}]"
+                    }
                     else -> "Not Found"
                 }
             } catch (e: Exception) {
@@ -904,6 +930,7 @@ class VirtualStickFragment : DJIFragment() {
         }
 
         startServerIfNeeded()
+        setupLaserMeasureListener()
         mediaVM.init()
         mediaVM.setStorage(CameraStorageLocation.SDCARD)
         mediaVM.setComponentIndex(ComponentIndexType.LEFT_OR_MAIN)
@@ -1068,6 +1095,17 @@ class VirtualStickFragment : DJIFragment() {
         GimbalKey.KeyRotateByAngle.create()
     private val zoomKey: DJIKey<Double> = CameraKey.KeyCameraZoomRatios.create()
     private val laserKey: DJIKey<LaserWorkMode> = CameraKey.KeyLaserWorkMode.create()
+    private val laserMeasureKey: DJIKey<LaserMeasureInformation> = CameraKey.KeyLaserMeasureInformation.create()
+
+    private fun setupLaserMeasureListener() {
+        if (lrfListenerRegistered) return
+        laserMeasureKey.listen(this@VirtualStickFragment) { newValue: LaserMeasureInformation? ->
+            lrfInfo = newValue
+            Log.d("DroneServer", "LRF measure update: $newValue")
+        }
+        lrfListenerRegistered = true
+        Log.i("DroneServer", "LRF measure listener registered")
+    }
     private val startRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStartRecord.create()
     private val stopRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStopRecord.create()
     private val isRecording: DJIKey<Boolean> = CameraKey.KeyIsRecording.create()

@@ -52,6 +52,8 @@ EP_CAPTURE_THERMAL_IMAGE = "/send/captureThermalImage"
 EP_SEND_FIRE_LOCATION = "/send/fireLocation"
 EP_SEND_SMOKE_LOCATION = "/send/smokeLocation"
 EP_TRIGGER_LRF = "/send/triggerLRF"
+EP_GET_LRF_DISTANCE = "/status/lrfDistance"
+EP_GET_LRF_TARGET_POINT = "/status/lrfTargetPoint"
 
 #PID Tuninng
 EP_TUNING = "/send/gotoWPwithPIDtuning"
@@ -130,6 +132,34 @@ class DJIInterfaceLite:
     
     def requestSendTriggerLRF(self):
         return self.requestSend(EP_TRIGGER_LRF, "")
+
+    def requestLRFDistance(self):
+        """
+        Returns the latest laser rangefinder distance in meters, or None if no measurement is available.
+        """
+        response = self.requestGet(EP_GET_LRF_DISTANCE, False)
+        if response is None or response == "":
+            return None
+        try:
+            return float(response)
+        except ValueError:
+            return None
+
+    def requestLRFTargetPoint(self):
+        """
+        Returns the latest laser rangefinder target point as (lat, lon, alt) in degrees/meters,
+        or None if no measurement is available.
+        """
+        response = self.requestGet(EP_GET_LRF_TARGET_POINT, False)
+        if response is None or response == "":
+            return None
+        try:
+            target = ast.literal_eval(response)
+            if isinstance(target, (list, tuple)) and len(target) == 3:
+                return (float(target[0]), float(target[1]), float(target[2]))
+            return None
+        except (ValueError, SyntaxError):
+            return None
     
     def requestSendZoomRatio(self, zoomRatio=1):
         return self.requestSend(EP_ZOOM, zoomRatio)
