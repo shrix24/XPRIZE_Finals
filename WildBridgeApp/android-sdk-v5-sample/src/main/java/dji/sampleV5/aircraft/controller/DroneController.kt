@@ -445,6 +445,7 @@ object DroneController {
 
     fun navigateTrajectory(
         waypoints: List<Triple<Double, Double, Double>>,
+        finalYaw: Double,
         lookaheadDistance: Double = 5.5,
         cruiseSpeed: Double = 5.0,
         minSpeedFinal: Double = 1.0,
@@ -543,33 +544,33 @@ object DroneController {
                 // Target altitude is smooth
                 val targetAlt = lookahead.third
 
-                // --- Yaw Control: P controller for angular velocity ---
-                val targetYaw = calculateBearing(current.latitude, current.longitude, lookahead.first, lookahead.second)
+                // Movement direction is always the bearing to the lookahead point
+                val moveDir = calculateBearing(current.latitude, current.longitude, lookahead.first, lookahead.second)
+                val moveDirRel = normalizeAngle(moveDir - currentYaw)
+                var targetSpeed = cruiseSpeed
+
+                // Last segment: slow down and rotate to finalYaw as we approach the endpoint
+                val isLastSegment = idxB == waypoints.lastIndex
+                val distToEnd = calculateDistance(current.latitude, current.longitude, end.first, end.second)
+                if (isLastSegment && distToEnd < slowdownRadius) {
+                    targetSpeed = minSpeedFinal + (cruiseSpeed - minSpeedFinal) * (distToEnd / slowdownRadius)
+                }
+
+                // --- Yaw Control: track movement direction during cruise; latch to finalYaw on final approach ---
+                val targetYaw = if (isLastSegment && distToEnd < slowdownRadius) finalYaw else moveDir
                 val yawError = normalizeAngle(targetYaw - currentYaw)
                 val Kp_yaw = 1.0 // Tune as needed; 1.0 = 1 deg/s per deg error
                 val maxYawRate = 30.0 // degrees/sec, DJI safe max
                 val targetYawRate = (Kp_yaw * yawError).coerceIn(-maxYawRate, maxYawRate)
 
-                // Move toward lookahead
-                val moveDir = targetYaw
-                val moveDirRel = normalizeAngle(moveDir - currentYaw)
-                var targetSpeed = cruiseSpeed
-
-                // Last segment: slow down as you approach the last waypoint
-                val isLastSegment = idxB == waypoints.lastIndex
-                if (isLastSegment) {
-                    val distToEnd = calculateDistance(current.latitude, current.longitude, end.first, end.second)
-                    if (distToEnd < slowdownRadius)
-                        targetSpeed = minSpeedFinal + (cruiseSpeed - minSpeedFinal) * (distToEnd / slowdownRadius)
-                }
-
                 val pitch = targetSpeed * Math.cos(Math.toRadians(moveDirRel))
                 val roll = targetSpeed * Math.sin(Math.toRadians(moveDirRel))
 
-                // Stop criteria: last segment, close to endpoint, and altitude close
+                // Stop criteria: last segment, close to endpoint, altitude close, AND heading settled on finalYaw
                 val reached = isLastSegment &&
-                        (calculateDistance(current.latitude, current.longitude, end.first, end.second) < 0.8) &&
-                        (Math.abs(targetAlt - current.altitude) < 1.0)
+                        (distToEnd < 0.8) &&
+                        (Math.abs(targetAlt - current.altitude) < 1.0) &&
+                        (Math.abs(normalizeAngle(finalYaw - currentYaw)) < 5.0)
 
                 if (reached) {
                     setStick(0F, 0F, 0F, 0F)
