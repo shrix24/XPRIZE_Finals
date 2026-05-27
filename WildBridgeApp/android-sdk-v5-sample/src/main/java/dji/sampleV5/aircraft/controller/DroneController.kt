@@ -209,7 +209,7 @@ object DroneController {
             this.pitch = 0.0
             this.roll = 0.0
             this.verticalThrottle = 0.0
-            this.verticalControlMode = VerticalControlMode.POSITION
+            this.verticalControlMode = VerticalControlMode.VELOCITY
             this.rollPitchControlMode = RollPitchControlMode.VELOCITY
             this.yawControlMode = YawControlMode.ANGULAR_VELOCITY
             this.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
