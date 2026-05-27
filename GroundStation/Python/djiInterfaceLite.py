@@ -51,7 +51,6 @@ EP_INTERMEDIARY_WP_REACHED = "/status/intermediaryWaypointReached"
 EP_CAPTURE_THERMAL_IMAGE = "/send/captureThermalImage"
 EP_SEND_FIRE_LOCATION = "/send/fireLocation"
 EP_SEND_SMOKE_LOCATION = "/send/smokeLocation"
-EP_TRIGGER_LRF = "/send/triggerLRF"
 EP_GET_LRF_DISTANCE = "/status/lrfDistance"
 EP_GET_LRF_TARGET_POINT = "/status/lrfTargetPoint"
 
@@ -130,9 +129,6 @@ class DJIInterfaceLite:
     def requestSendGimbalRelYaw(self, rel_yaw=0):
         return self.requestSend(EP_GIMBAL_SET_REL_YAW, f"0,0,{rel_yaw}")
     
-    def requestSendTriggerLRF(self):
-        return self.requestSend(EP_TRIGGER_LRF, "")
-
     def requestLRFDistance(self):
         """
         Returns the latest laser rangefinder distance in meters, or None if no measurement is available.

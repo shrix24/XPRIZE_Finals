@@ -34,7 +34,6 @@ def main():
         "Enter a command:\n"
         "  p - set gimbal pitch\n"
         "  y - set gimbal yaw\n"
-        "  t - trigger LRF\n"
         "  d - get LRF distance\n"
         "  g - get LRF target point\n"
         "  q - quit\n"
@@ -61,28 +60,23 @@ def main():
                     print(f"Gimbal yaw set to {yaw_angle} degrees...")
             time.sleep(1)
 
-        elif usr_input == "t":
-            if safe(dji_interface.requestSendTriggerLRF) is not None:
-                print("LRF triggered. Allow ~1s for first measurement.")
-            time.sleep(1)
-
         elif usr_input == "d":
             distance = safe(dji_interface.requestLRFDistance)
             if distance is None:
-                print("No LRF distance available yet. Trigger the LRF first (or check connection).")
+                print("No LRF distance returned (timeout or no target).")
             else:
                 print(f"LRF distance: {distance:.2f} m")
 
         elif usr_input == "g":
             target = safe(dji_interface.requestLRFTargetPoint)
             if target is None:
-                print("No LRF target point available yet. Trigger the LRF first (or check connection).")
+                print("No LRF target point returned (timeout or no target).")
             else:
                 lat, lon, alt = target
                 print(f"LRF target point: lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m")
 
         else:
-            print("Unknown command. Try p, y, t, d, g, or q.")
+            print("Unknown command. Try p, y, d, g, or q.")
 
 
 if __name__ == "__main__":

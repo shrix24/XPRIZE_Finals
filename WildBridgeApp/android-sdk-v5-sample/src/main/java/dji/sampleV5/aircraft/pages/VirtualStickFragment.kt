@@ -738,22 +738,6 @@ class VirtualStickFragment : DJIFragment() {
                         payloadWidgetVM.setWidgetValue(switch)
                         "Drop successfully"
                     }
-                    "/send/triggerLRF" -> {
-                        setupLaserMeasureListener()
-                        laserKey.set(
-                            LaserWorkMode.OPEN_ALWAYS,
-                            onSuccess = {
-                                Log.i("DroneServer", "LRF laser opened")
-                            },
-                            onFailure = { error ->
-                                Log.e("DroneServer", "LRF laser open failed: ${error.description()}")
-                            }
-                        )
-                        mainHandler.post {
-                            ToastUtils.showToast("LRF triggered")
-                        }
-                        "LRF triggered successfully"
-                    }
                     "/send/gotoWP" -> {
                         val cmd = postData.split(",")
                         if (cmd.size < 3) {
@@ -864,12 +848,12 @@ class VirtualStickFragment : DJIFragment() {
                         "[${smokeLocation.latitude}, ${smokeLocation.longitude}]"
                     }
                     "/status/lrfDistance" -> {
-                        val info = lrfInfo
+                        val info = takeFreshLrfReading()
                         val distance = info?.distance
                         if (distance == null) "" else "$distance"
                     }
                     "/status/lrfTargetPoint" -> {
-                        val target = lrfInfo?.location3D
+                        val target = takeFreshLrfReading()?.location3D
                         if (target == null) "" else "[${target.latitude}, ${target.longitude}, ${target.altitude}]"
                     }
                     else -> "Not Found"
@@ -1105,6 +1089,41 @@ class VirtualStickFragment : DJIFragment() {
         }
         lrfListenerRegistered = true
         Log.i("DroneServer", "LRF measure listener registered")
+    }
+
+    private val lrfReadingLock = Any()
+
+    private fun takeFreshLrfReading(timeoutMs: Long = 2000L): LaserMeasureInformation? = synchronized(lrfReadingLock) {
+        setupLaserMeasureListener()
+        lrfInfo = null
+
+        laserKey.set(
+            LaserWorkMode.OPEN_ALWAYS,
+            onSuccess = { Log.i("DroneServer", "LRF laser opened") },
+            onFailure = { error -> Log.e("DroneServer", "LRF laser open failed: ${error.description()}") }
+        )
+
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (lrfInfo == null && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(50)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+        }
+        val reading = lrfInfo
+
+        laserKey.set(
+            LaserWorkMode.OPEN_ON_DEMAND,
+            onSuccess = { Log.i("DroneServer", "LRF laser set to OPEN_ON_DEMAND (off)") },
+            onFailure = { error -> Log.e("DroneServer", "LRF laser close failed: ${error.description()}") }
+        )
+
+        if (reading == null) {
+            Log.w("DroneServer", "LRF reading timed out after ${timeoutMs}ms")
+        }
+        reading
     }
     private val startRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStartRecord.create()
     private val stopRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStopRecord.create()
